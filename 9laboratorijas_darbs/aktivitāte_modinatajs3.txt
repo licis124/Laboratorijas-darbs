@@ -1,0 +1,316 @@
+#include<msp430g2202.h>
+
+char i;
+unsigned char sekundes = 0;
+unsigned char minutes = 0;
+unsigned char stundas = 0;
+unsigned char mode = 0;
+unsigned char submode = 0;
+unsigned char poga4;
+unsigned char alarm_minutes;
+unsigned char alarm_hours;
+unsigned char alarm_on;
+
+void display(unsigned char digit);
+void delay(unsigned long ms);
+void indication(unsigned char digit12, unsigned char digit34, unsigned char which_digit);
+void time_engine(unsigned char);
+void digit_blinking(unsigned char digit_position,unsigned char  blink_digit_position1,unsigned char  blink_digit_position2, unsigned int h);
+void long_press(void);
+void short_press(void);
+int main(void)
+{
+ WDTCTL = WDTPW + WDTHOLD;
+P2DIR &= ~0x30;
+ P2IES |= 0x30;
+ P2IFG &= ~0x30;
+ P2IE |= 0x30;
+__enable_interrupt();
+ BCSCTL1 = CALBC1_12MHZ; //SET TIMER REQ TO 12MHZ
+ DCOCTL = CALDCO_12MHZ; //-||-
+ P1DIR |= 0xFF;
+ P2DIR |= 0xF;
+ P2OUT &= ~0xF;
+ P2OUT |= 0x1;
+ P2DIR |= 0b00001100 ;
+
+ unsigned char j =0; //unsigned char veertiibas var buut no 0 lidz 255
+ unsigned char digit_position = 0;
+ for(unsigned int h = 0;;h++)
+ {
+  if(h==1000){
+    h=0;
+ time_engine(1);
+  } 
+  digit_position = (digit_position+1)%4;
+ // indikaacijas dala
+ 
+if(mode == 0)
+{
+  indication(minutes,sekundes,digit_position);
+  if ((h>500)&&(digit_position==2))
+  {
+    P1OUT|=0b00001000;
+    P2OUT|=0b00000010;
+  } 
+}
+else if(mode == 1){
+indication(stundas,minutes,digit_position);
+
+ if ((h>500)&&(digit_position==2))
+  {
+ 
+    P1OUT|=0b00001000;
+    P2OUT|=0b00000010;
+  
+  } 
+  
+}
+else if(mode==2)
+ {
+ indication(stundas,minutes,digit_position);
+ if (submode==0) digit_blinking(digit_position,0,1,h);
+ if (submode==1) digit_blinking(digit_position,2,3,h);
+ if ((h<500)&&(digit_position==1)) P1OUT |= 0x8;
+ } 
+ else if((mode == 3)&(submode == 0)&(alarm_on == 1))
+indication2(0xA,0xB,0xC,0xD,digit_position);//attēlot AL ON
+else if((mode == 3)&(submode == 0) &(alarm_on == 0))
+indication2(0xA,0xB,0xC,0xE,digit_position); // attēlot A off
+ else if(mode == 3)
+{
+indication(alarm_hours,alarm_minutes,digit_position);
+if (submode==1) digit_blinking(digit_position,0,1,h);
+ if (submode==2) digit_blinking(digit_position,2,3,h);
+} 
+// indikaacijas dalas beigas
+if((alarm_minutes == minutes)&&(alarm_hours == stundas)&&(alarm_on == 1))
+{
+ play(1,4);
+play(2,2);
+play(1,4);
+play(4,2);
+play(3,1);
+// ierakstiet savu melodiju
+} 
+
+  delay(100);
+ }
+}
+
+void display(unsigned char digit)
+{
+  if(digit == 0) P1OUT = 0xF5;
+
+  if(digit == 1) P1OUT = 0x05;
+
+  if(digit == 2) P1OUT = 0x73;
+
+  if(digit == 3) P1OUT = 0x57;
+
+  if(digit == 4) P1OUT = 0x87;
+
+  if(digit == 5) P1OUT = 0xD6;
+
+  if(digit == 6) P1OUT = 0xF6;
+
+  if(digit == 7) P1OUT = 0x45;
+  
+  if(digit == 8) P1OUT = 0xF7;
+
+  if(digit == 9) P1OUT = 0xD7;
+
+  if(digit ==0xA) P1OUT = 0xE7;
+   if(digit ==0xb) P1OUT = 0xB0;
+    if(digit ==0xc) P1OUT = 0x36;
+     if(digit ==0xd) P1OUT = 0x26;
+      if(digit ==0xe) P1OUT = 0xE2;
+       if(digit ==0xf) P1OUT = 0x0;
+  
+}
+
+void delay(unsigned long ms)
+{
+  unsigned long ims;
+  for(ims = 0; ims<ms;ims++)
+  {
+    __delay_cycles(120);
+  }
+}
+
+void indication(unsigned char digit12, unsigned char digit34, unsigned char which_digit)
+{
+  P2OUT &= ~0xF;
+  if(which_digit == 0) 
+  {
+    P2OUT = 0b1000;
+    display(digit34%10);
+  }
+  
+  if(which_digit == 1)
+  {
+    P2OUT = 0b100;
+    display(digit34/10);
+  }
+  if(which_digit == 2)
+  {
+    P2OUT = 0b10;
+    display(digit12%10);
+  }
+  if(which_digit == 3) 
+  {
+    P2OUT = 0b1;
+    display(digit12/10);
+  }
+}
+void indication2(unsigned char digit1, unsigned char digit2, unsigned char digit3, unsigned char digit4, unsigned char which_digit)
+{
+  P2OUT &= ~0xF;
+  if(which_digit == 0) 
+  {
+    P2OUT = 0b1000;
+    display(digit1);
+  }
+  
+  if(which_digit == 1)
+  {
+    P2OUT = 0b100;
+    display(digit2);
+  }
+  if(which_digit == 2)
+  {
+    P2OUT = 0b10;
+    display(digit3);
+  }
+  if(which_digit == 3) 
+  {
+    P2OUT = 0b1;
+    display(digit4);
+  }
+}
+void time_engine(unsigned char time_instant_in_seconds){
+  sekundes = sekundes + time_instant_in_seconds; 
+  if (sekundes==60){
+  sekundes=0;minutes++;
+  } 
+
+}
+#pragma vector = PORT2_VECTOR
+__interrupt void P2_ISR(void)
+{
+if((P2IFG & BIT5) == BIT5)
+ {
+ P2IFG &= ~BIT5;
+ mode++;
+ if(mode==4) mode=0;
+ if((alarm_minutes == minutes)&&(alarm_hours == stundas))
+{
+alarm_on = 0;
+} 
+
+ //SW1 activities
+ }
+if((P2IFG & BIT4) == BIT4)
+ {
+ P2IFG &= ~BIT4;
+ if ((P2IES&BIT4) == BIT4) //ja poga nostrādā uz nospiešanas momentu
+ {
+ P2IES &= ~BIT4; //tagad poga nostrādās uz atlaišanas momentu
+ poga4 = sekundes; //fiksēsim brīdi, kad poga tika nospiesta
+ }
+else //ja poga nostrādā uz atlaišanas momentu
+ {
+ P2IES |= BIT4;//tagad poga nostrādās uz nospiešanas momentu
+if (sekundes-poga4>1)
+long_press();
+ //SW2 long press actions
+else
+short_press();
+//SW2 short press actions
+ }
+ //SW2 activities
+ }
+}
+void short_press(void) 
+
+{
+  if(mode==2)
+{
+ if (submode==0)
+ {
+  stundas++;
+  if(stundas==24)stundas=0;
+  
+ }
+ //activities1
+}
+if (submode==1)
+{
+  minutes++;
+  if(minutes==60)minutes=0;
+ //activities2
+}
+
+if (mode==3)
+{
+ if(submode==0)
+{
+  alarm_on = (alarm_on+1)%2; 
+ //activity3
+}
+ if(submode==1)
+{
+  alarm_hours++;
+  if(alarm_hours==24)alarm_hours=0;
+ //activity4
+}
+if(submode==2)
+{
+  alarm_minutes++;
+  if(alarm_minutes==60)alarm_minutes=0;
+ //activity5
+}
+} 
+}
+
+//short press activities
+
+void long_press(void)
+{
+  submode++;
+if(submode==3) submode=0; 
+//long press activities
+} 
+
+void digit_blinking(unsigned char digit_position,unsigned char  blink_digit_position1,unsigned char  blink_digit_position2, unsigned int h){
+   if ((h>500)&&( digit_position=blink_digit_position1)) {
+        P2OUT &= ~(0x01<<digit_position); 
+    }
+     if ((h>500)&&( digit_position=blink_digit_position2)) {
+        P2OUT &= ~(0x01<<digit_position); 
+    }
+} 
+void play(int n,int e)
+{
+unsigned int del;
+unsigned long laiks;
+volatile unsigned long i;
+volatile unsigned long j;
+if (n==1) del = 47;//del vērtības paņemt no tab. pedējās kolonnās.
+if (n==2) del = 42;//tikai skaitļu veselas daļas!!!
+if (n==3) del = 37;
+if (n==4) del = 35;
+if (n==5) del = 31;
+if (n==6) del = 28;
+if (n==7) del = 25;
+if(e==1) laiks = 100000; //!!!šeit ir e nevis n
+if(e==2) laiks = 50000;
+if(e==4) laiks = 25000; //!!!šeit ir 4 nevis 3
+for (i = 0;i<laiks;i=i+del+del)
+ {
+ delay(del);
+ P2OUT |= 0b00001100 ;//pini kas atbilst buzzerim
+ delay(del);
+ P2OUT &= ~0b00001100; //pini kas atbilst buzzerim
+ }
+}
